@@ -16,6 +16,9 @@
 from novaclient import utils
 from novaclient import base
 from novaclient.v1_1 import hosts
+from novaclient import utils
+
+import collections
 
 def __pre_parse_args__():
     pass
@@ -23,32 +26,38 @@ def __pre_parse_args__():
 def __post_parse_args__(args):
     pass
 
-def _print_result(result):
-    print result
+CanaryDataPoint = collections.namedtuple("CanaryDataPoint", "host_name metric timestamp cf value")
+CanaryHostInfo = collections.namedtuple("CanaryHostInfo", "host_name")
+CanaryMetricInfo = collections.namedtuple("CanaryMetricInfo", "host_name metric from_time to_time cfs resolutions")
 
 @utils.arg('host', metavar='<host>', help='ID or name of the host')
+@utils.arg('metric', metavar='<metric>', default=None, help='The metric to query')
 @utils.arg('--from_time', metavar='<from_time>', default=None, help='The start time')
 @utils.arg('--to_time', metavar='<to_time>', default=None, help='The end time')
 @utils.arg('--cf', metavar='<consolidation_function>', default='AVERAGE',
         help='Consolidation function, generally one of: AVERAGE,MIN,MAX')
-@utils.arg('--metric', metavar='<user-data>', default=None, help='The metric to query')
 @utils.arg('--resolution', metavar='<resolution>', default=None, help='The measurement resolution')
 def do_canary_query(cs, args):
     """ Query a Canary host for monitoring stats. """
     kwargs = \
     {
-        "metric" : args.metric,
         "from_time" : args.from_time,
         "to_time" : args.to_time,
         "cf" : args.cf,
         "resolution" : args.resolution
     }
-    _print_result(cs.canary.query(args.host, **kwargs))
+    utils.print_list(cs.canary.query(args.host, args.metric, **kwargs),
+        ["host_name", "metric", "timestamp", "cf", "value"])
 
 @utils.arg('host', metavar='<host>', help='ID or name of the host')
-def do_canary_show(cs, args):
+def do_canary_info(cs, args):
     """ Show available stats for a Canary host. """
-    _print_result(cs.canary.show(args.host, **kwargs))
+    utils.print_list(cs.canary.info(args.host), 
+        ["host_name", "metric", "from_time", "to_time", "cfs", "resolutions"])
+
+def do_canary_list(cs, args):
+    """ Show available canary hosts. """
+    utils.print_list(cs.canary.list(), ["host_name"])
 
 class CanaryHost(hosts.Host):
 
@@ -77,11 +86,22 @@ class CanaryHostManager(hosts.HostManager):
             "cf" : cf,
             "resolution" : resolution
         }
-        body = { "canary-query" : { "args" : args } }
-        url = '/os-hosts/%s/action' % base.getid(host)
-        return self.api.client.post(url, body=body)
+        body = { "args" : args }
+        url = '/canary/%s/query' % base.getid(host)
+        res = self.api.client.post(url, body=body)[1]
+        return map(lambda v: CanaryDataPoint(host, metric, v[0], cf, v[1]), res)
 
-    def show(self, host, **kwargs):
-        body = { "canary-show" : { } }
-        url = '/os-hosts/%s/action' % base.getid(host)
-        return self.api.client.post(url, body=body)
+    def list(self):
+        url = '/canary'
+        res = self.api.client.get(url)[1]
+        return map(CanaryHostInfo, res)
+
+    def info(self, host):
+        url = '/canary/%s/info' % base.getid(host)
+        res = self.api.client.get(url)[1]
+        return map(lambda (k,v): CanaryMetricInfo(host,
+                    k,
+                    v.get("from_time"),
+                    v.get("to_time"),
+                    v.get("cfs"),
+                    v.get("resolutions")), res.items())
