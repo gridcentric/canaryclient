@@ -26,9 +26,9 @@ def __pre_parse_args__():
 def __post_parse_args__(args):
     pass
 
-CanaryDataPoint = collections.namedtuple("CanaryDataPoint", "host_name metric timestamp cf value")
-CanaryHostInfo = collections.namedtuple("CanaryHostInfo", "host_name")
-CanaryMetricInfo = collections.namedtuple("CanaryMetricInfo", "host_name metric from_time to_time cfs resolutions")
+CanaryDataPoint = collections.namedtuple("CanaryDataPoint", "timestamp cf value")
+CanaryTargetInfo = collections.namedtuple("CanaryTargetInfo", "host_name instance_id")
+CanaryMetricInfo = collections.namedtuple("CanaryMetricInfo", "metric from_time to_time cfs resolutions")
 
 @utils.arg('host', metavar='<host>', help='ID or name of the host')
 @utils.arg('metric', metavar='<metric>', default=None, help='The metric to query')
@@ -47,28 +47,32 @@ def do_canary_query(cs, args):
         "resolution" : args.resolution
     }
     utils.print_list(cs.canary.query(args.host, args.metric, **kwargs),
-        ["host_name", "metric", "timestamp", "cf", "value"])
+        ["timestamp", "cf", "value"])
 
 @utils.arg('host', metavar='<host>', help='ID or name of the host')
 def do_canary_info(cs, args):
     """ Show available stats for a Canary host. """
     utils.print_list(cs.canary.info(args.host), 
-        ["host_name", "metric", "from_time", "to_time", "cfs", "resolutions"])
+        ["metric", "from_time", "to_time", "cfs", "resolutions"])
 
 def do_canary_list(cs, args):
     """ Show available canary hosts. """
-    utils.print_list(cs.canary.list(), ["host_name"])
+    utils.print_list(cs.canary.list(), ["host_name", "instance_id"])
 
-class CanaryHost(hosts.Host):
+class CanaryTarget(hosts.Host):
 
-    def canary_query(self, **kwargs):
-        return self.manager.query(self.host, **kwargs)
+    def __init__(self, host, instance=None):
+        self.host = host
+        self.instance = instance
 
-    def canary_query(self, **kwargs):
-        return self.manager.query(self.host, **kwargs)
+    def canary_query(self, metric, **kwargs):
+        return self.manager.query(self.host, instance=self.instance, **kwargs)
 
-class CanaryHostManager(hosts.HostManager):
-    resource_class = CanaryHost
+    def canary_info(self, **kwargs):
+        return self.manager.info(self.host, instance=self.instance, **kwargs)
+
+class CanaryManager(hosts.HostManager):
+    resource_class = CanaryTarget
 
     def __init__(self, client, *args, **kwargs):
         hosts.HostManager.__init__(self, client, *args, **kwargs)
@@ -77,29 +81,42 @@ class CanaryHostManager(hosts.HostManager):
         if not(hasattr(client, 'canary')):
             setattr(client, 'canary', self)
 
-    def query(self, host, metric, cf='AVERAGE', from_time=None, to_time=None, resolution=None):
+    def query(self, id, metric, instance=None, cf='AVERAGE', from_time=None, to_time=None, resolution=None):
         args = \
         {
             "metric" : metric,
             "from_time" : from_time,
             "to_time" : to_time,
             "cf" : cf,
-            "resolution" : resolution
+            "resolution" : resolution,
         }
         body = { "args" : args }
-        url = '/canary/%s/query' % base.getid(host)
+        if instance != None:
+            id = "%s:%s" % (base.getid(id), instance)
+        else:
+            id = base.getid(id)
+        url = '/canary/%s/query' % id
         res = self.api.client.post(url, body=body)[1]
-        return map(lambda v: CanaryDataPoint(host, metric, v[0], cf, v[1]), res)
+        return map(lambda v: CanaryDataPoint(v[0], cf, v[1]), res)
 
     def list(self):
         url = '/canary'
         res = self.api.client.get(url)[1]
-        return map(CanaryHostInfo, res)
+        rval = []
+        for host in res:
+            rval.append(CanaryTargetInfo(host, None))
+            for instance in res[host]:
+                rval.append(CanaryTargetInfo(host, instance))
+        return rval
 
-    def info(self, host):
-        url = '/canary/%s/info' % base.getid(host)
+    def info(self, id, instance=None):
+        if instance != None:
+            id = "%s:%s" % (base.getid(id), instance)
+        else:
+            id = base.getid(id)
+        url = '/canary/%s/info' % id
         res = self.api.client.get(url)[1]
-        return map(lambda (k,v): CanaryMetricInfo(host,
+        return map(lambda (k,v): CanaryMetricInfo(
                     k,
                     v.get("from_time"),
                     v.get("to_time"),
