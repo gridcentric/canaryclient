@@ -1,5 +1,5 @@
 [gerrit]
 host=reviews.gridcentric.ca
 port=29418
-project=canary
+project=canaryclient
 defaultbranch=master

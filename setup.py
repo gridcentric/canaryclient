@@ -19,53 +19,11 @@ import glob
 from distutils.core import setup
 
 VERSION = os.environ.get("VERSION", '0.1')
-PACKAGE = os.environ.get("PACKAGE", None)
-DESTDIR = os.environ.get("DESTDIR", '')
 
-if (not(PACKAGE) or PACKAGE == "canary") and os.path.exists("canary"):
-    setup(name='canary',
-          version=VERSION,
-          description='Monitoring tools for Nova hosts.',
-          author='Gridcentric Inc.',
-          author_email='support@gridcentric.com',
-          url='http://www.gridcentric.com/',
-          packages=['canary'])
-
-if (not(PACKAGE) or PACKAGE == "api") and os.path.exists("canary"):
-    setup(name='canary-api',
-          version=VERSION,
-          description='Monitoring tools for Nova hosts.',
-          author='Gridcentric Inc.',
-          author_email='support@gridcentric.com',
-          url='http://www.gridcentric.com/')
-
-if (not(PACKAGE) or PACKAGE == "host") and os.path.exists("canary"):
-    setup(name='canary-host',
-          version=VERSION,
-          description='Monitoring tools for Nova hosts.',
-          author='Gridcentric Inc.',
-          author_email='support@gridcentric.com',
-          url='http://www.gridcentric.com/',
-          scripts=['bin/canary'],
-          data_files=[('%s/etc/init' % DESTDIR, ['etc/init/canary.conf'])])
-
-if (not(PACKAGE) or PACKAGE == "novaclient") and os.path.exists("canary_python_novaclient_ext"):
-    setup(name='canary_python_novaclient_ext',
-          version=VERSION,
-          description='Monitoring tools for Nova hosts.',
-          author='Gridcentric Inc.',
-          author_email='support@gridcentric.com',
-          url='http://www.gridcentric.com/',
-          packages=['canary_python_novaclient_ext'])
-
-if (not(PACKAGE) or PACKAGE == "horizon") and os.path.exists("canary"):
-    setup(name='canary-horizon',
-          version=VERSION,
-          description='Monitoring tools for Nova hosts.',
-          author='Gridcentric Inc.',
-          author_email='support@gridcentric.com',
-          url='http://www.gridcentric.com/',
-          packages=['canary.horizon', 'canary.horizon.hosts', 'canary.horizon.instances'],
-          package_data={'canary.horizon': ['templates/canary/*.html']},
-          data_files=[("%s/usr/share/openstack-dashboard/static/canary" % DESTDIR,
-                      glob.glob('canary/horizon/static/canary/*'))])
+setup(name='canary_python_novaclient_ext',
+      version=VERSION,
+      description='Monitoring tools for Nova hosts.',
+      author='Gridcentric Inc.',
+      author_email='support@gridcentric.com',
+      url='http://www.gridcentric.com/',
+      packages=['canary_python_novaclient_ext'])
